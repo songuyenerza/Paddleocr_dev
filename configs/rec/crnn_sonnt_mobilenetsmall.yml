@@ -1,0 +1,99 @@
+Global:
+  use_gpu: true
+  epoch_num: 100
+  log_smooth_window: 20
+  print_batch_step: 10
+  save_model_dir: ./output/rec/crnn_data4m_101223_mv3_small/
+  save_epoch_step: 5
+  # evaluation is run every 2000 iterations
+  eval_batch_step: [0, 4000]
+  cal_metric_during_train: True
+  pretrained_model: ./pretrained_crnn_32x480/best_accuracy
+  checkpoints:
+  save_inference_dir:
+  use_visualdl: False
+  infer_img: doc/imgs_words_en/word_10.png
+  # for data or label process
+  character_dict_path: ./dict/vn_dict.txt
+  max_text_length: 100
+  infer_mode: False
+  use_space_char: False
+  save_res_path: ./output/rec/rec_mv3_none_bilstm_ctc_v2.0_train.txt
+
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    learning_rate: 0.0005
+  regularizer:
+    name: 'L2'
+    factor: 0
+
+Architecture:
+  model_type: rec
+  algorithm: CRNN
+  Transform:
+  Backbone:
+    name: MobileNetV3
+    scale: 0.5
+    model_name: small
+  Neck:
+    name: SequenceEncoder
+    encoder_type: rnn
+    hidden_size: 96
+  Head:
+    name: CTCHead
+    fc_decay: 0
+
+Loss:
+  name: CTCLoss
+
+PostProcess:
+  name: CTCLabelDecode
+
+Metric:
+  name: RecMetric
+  main_indicator: acc
+
+Train:
+  dataset:
+    name: LMDBDataSet
+    data_dir: /home/jovyan/sonnt373/data/DATA_LMDB_4m_synth_pdf/train/
+    transforms:
+      - DecodeImage: # load image
+          img_mode: BGR
+          channel_first: False
+      # - SVTRRecAug:
+      #     aug_type: 1 # or 1
+      - CTCLabelEncode: # Class handling label
+      - RecResizeImg:
+          image_shape: [3, 32, 480]
+          padding: True
+      - KeepKeys:
+          keep_keys: ['image', 'label', 'length'] # dataloader will return list in this order
+  loader:
+    shuffle: True
+    batch_size_per_card: 128
+    drop_last: True
+    num_workers: 32
+
+Eval:
+  dataset:
+    name: LMDBDataSet
+    data_dir: /home/jovyan/sonnt373/data/DATA_LMDB_4m_synth_pdf/val/
+    transforms:
+      - DecodeImage: # load image
+          img_mode: BGR
+          channel_first: False
+      - CTCLabelEncode: # Class handling label
+      - RecResizeImg:
+          image_shape: [3, 32, 480]
+          padding: True
+      - KeepKeys:
+          keep_keys: ['image', 'label', 'length'] # dataloader will return list in this order
+  loader:
+    shuffle: True
+    drop_last: False
+    batch_size_per_card: 128
+    num_workers: 32

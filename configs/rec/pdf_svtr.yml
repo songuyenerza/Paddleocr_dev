@@ -1,0 +1,137 @@
+Global:
+  use_gpu: True
+  epoch_num: 100
+  log_smooth_window: 5
+  print_batch_step: 5
+  save_model_dir: ./output/rec/svtr_4mdata_151223_notps_aug_v4/
+  save_epoch_step: 1
+  # evaluation is run every 2000 iterations after the 0th iteration
+  eval_batch_step: [0, 1000]
+  cal_metric_during_train: True
+  pretrained_model: ./output/rec/svtr_4mdata_151223_notps_aug_v3/latest
+  checkpoints: ./output/rec/svtr_4mdata_151223_notps_aug_v3/latest
+  save_inference_dir:
+  use_visualdl: False
+  infer_img: doc/imgs_words_en/word_10.png
+  # for data or label process
+  character_dict_path: ./dict/vn_dict.txt
+  character_type: en
+  max_text_length: 100
+  infer_mode: False
+  use_space_char: False
+  save_res_path: ./output/rec/svtr/predicts_svtr_tiny.txt
+  d2s_train_image_shape: [3, 32, 480]
+
+# Optimizer:
+#   name: Adam
+#   beta1: 0.9
+#   beta2: 0.99
+#   epsilon: 1.e-8
+#   weight_decay: 0.05
+#   no_weight_decay_name: norm pos_embed
+#   one_dim_param_no_weight_decay: True
+#   lr:
+#     name: Cosine
+#     learning_rate: 0.0002
+#     warmup_epoch: 2
+
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    name: Cosine
+    learning_rate: 0.0003
+    warmup_epoch: 1
+  regularizer:
+    name: L2
+    factor: 3.0e-05
+
+Architecture:
+  model_type: rec
+  algorithm: SVTR
+  Transform: 
+    # name: STN_ON
+    # tps_inputsize: [32, 64]
+    # tps_outputsize: [32, 480]
+    # num_control_points: 20
+    # tps_margins: [0.05,0.05]
+    # stn_activation: none
+  Backbone:
+    name: SVTRNet
+    img_size: [32, 480]
+    out_char_num: 120 # W//4 or W//8 or W/12
+    out_channels: 192
+    patch_merging: 'Conv'
+    embed_dim: [64, 128, 256]
+    depth: [3, 6, 3]
+    num_heads: [2, 4, 8]
+    mixer: ['Local','Local','Local','Local','Local','Local','Global','Global','Global','Global','Global','Global']
+    local_mixer: [[7, 11], [7, 11], [7, 11]]
+    # mixer: ['Conv','Conv','Conv','Conv','Conv','Conv','Global','Global','Global','Global','Global','Global']
+    # local_mixer: [[5, 5], [5, 5], [5, 5]]
+    last_stage: True
+    prenorm: False
+  Neck:
+    name: SequenceEncoder
+    encoder_type: reshape
+  Head:
+    name: CTCHead
+
+Loss:
+  name: CTCLoss
+
+PostProcess:
+  name: CTCLabelDecode
+
+Metric:
+  name: RecMetric
+  main_indicator: acc
+
+Train:
+  dataset:
+    name: LMDBDataSet
+    data_dir: /home/jovyan/sonnt373/data/DATA_LMDB_4m_synth_pdf/train/
+    transforms:
+      - DecodeImage: # load image
+          img_mode: BGR
+          channel_first: False
+      # - SVTRRecAug:
+      #     aug_type: 0 # or 1
+      - RecAug:
+      - CTCLabelEncode: # Class handling label
+      - SVTRRecResizeImg:
+          image_shape: [3, 32, 480]
+          padding: True
+      - KeepKeys:
+          keep_keys: ['image', 'label', 'length'] # dataloader will return list in this order
+  loader:
+    shuffle: True
+    batch_size_per_card: 256
+    drop_last: True
+    num_workers: 32
+
+Eval:
+  dataset:
+    name: LMDBDataSet
+    data_dir: /home/jovyan/sonnt373/data/DATA_LMDB_4m_synth_pdf/val/
+    transforms:
+      - DecodeImage: # load image
+          img_mode: BGR
+          channel_first: False
+      # - SVTRRecAug:
+      #     aug_type: 0 # or 1
+      - RecAug:
+      - CTCLabelEncode: # Class handling label
+      - SVTRRecResizeImg:
+          image_shape: [3, 32, 480]
+          padding: True
+      - KeepKeys:
+          keep_keys: ['image', 'label', 'length'] # dataloader will return list in this order
+  loader:
+    shuffle: True
+    drop_last: False
+    batch_size_per_card: 256
+    num_workers: 32
+
+    # python3 tools/train.py -c /home/jovyan/PaddleOCR/configs/rec/pdf_svtr.yml -o Global.pretrained_model=/home/jovyan/PaddleOCR/output/rec/svtr_cccd/best_accuracy
